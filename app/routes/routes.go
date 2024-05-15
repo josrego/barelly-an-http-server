@@ -57,11 +57,11 @@ func (echo *EchoHandler) HandleRequest(r *requests.Request) *responses.Response 
 	message, found := strings.CutPrefix(r.Path, "/echo/")
 	if !found {
 		fmt.Println("no echo message found in: ", r.Path)
-		return responses.New(200, responses.TEXT, nil)
+		return responses.New(200, responses.TEXT, nil, r)
 	}
 
 	fmt.Println("responding echo message: ", message)
-	return responses.New(200, responses.TEXT, []byte(message))
+	return responses.New(200, responses.TEXT, []byte(message), r)
 }
 
 // User Agent
@@ -70,11 +70,12 @@ type UserAgendHandler struct{}
 func (userAgent *UserAgendHandler) HandleRequest(r *requests.Request) *responses.Response {
 	if userAgent, ok := r.Headers["user-agent"]; ok {
 		fmt.Printf("founder 'user-agent': %q\n", userAgent)
-		return responses.New(200, responses.TEXT, []byte(userAgent))
+		return responses.New(200, responses.TEXT, []byte(userAgent), r)
 	}
 
 	fmt.Println("header 'User-Agent' not present in request.")
-	return responses.New(404, responses.TEXT, []byte("header 'User-Agent' not present in request."))
+	return responses.New(404, responses.TEXT,
+		[]byte("header 'User-Agent' not present in request."), r)
 }
 
 // Files API
@@ -89,34 +90,36 @@ func (filesHandler *FilesHandler) HandleRequest(r *requests.Request) *responses.
 		return filesHandler.HandlePostFileRequest(r)
 	}
 
-	return responses.New(400, responses.TEXT, []byte("Could not handle file request"))
+	return responses.New(400, responses.TEXT, []byte("Could not handle file request"), r)
 }
 
 func (filesHandler *FilesHandler) HandleGetFileRequest(r *requests.Request) *responses.Response {
 	fileName, found := strings.CutPrefix(r.Path, "/files/")
 	if !found {
 		log.Fatalf("no fileName found in path: %s\n", r.Path)
-		return responses.New(404, responses.TEXT, []byte(fmt.Sprintf("no fileName found in path: %s\n", r.Path)))
+		return responses.New(404, responses.TEXT,
+			[]byte(fmt.Sprintf("no fileName found in path: %s\n", r.Path)), r)
 	}
 
 	fileData, err := os.ReadFile(filesHandler.FilesPath + "/" + fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return responses.New(404, responses.TEXT, nil)
+			return responses.New(404, responses.TEXT, nil, r)
 		}
 
 		log.Fatalln("Error while reading file", err)
-		return responses.New(500, responses.TEXT, []byte(""))
+		return responses.New(500, responses.TEXT, []byte(""), r)
 	}
 
-	return responses.New(200, responses.BINARY, fileData)
+	return responses.New(200, responses.BINARY, fileData, r)
 }
 
 func (filesHandler *FilesHandler) HandlePostFileRequest(r *requests.Request) *responses.Response {
 	fileName, found := strings.CutPrefix(r.Path, "/files/")
 	if !found {
 		log.Fatalf("no fileName found in path: %s\n", r.Path)
-		return responses.New(404, responses.TEXT, []byte(fmt.Sprintf("no fileName found in path: %s\n", r.Path)))
+		return responses.New(404, responses.TEXT,
+			[]byte(fmt.Sprintf("no fileName found in path: %s\n", r.Path)), r)
 	}
 
 	err := os.WriteFile(filesHandler.FilesPath+"/"+fileName, r.Body, 0644)
@@ -124,5 +127,5 @@ func (filesHandler *FilesHandler) HandlePostFileRequest(r *requests.Request) *re
 		log.Fatalln("Error while storing uploaded file:", err)
 	}
 
-	return responses.New(201, responses.TEXT, nil)
+	return responses.New(201, responses.TEXT, nil, r)
 }

@@ -56,11 +56,11 @@ func handleConnection(conn net.Conn) {
 
 func getResp(req *requests.Request) *responses.Response {
 	if req.Path == "/" {
-		return responses.New(200, responses.TEXT, nil)
+		return responses.New(200, responses.TEXT, nil, req)
 	} else {
 		handler := routes.GetRouteHandler(req.Path)
 		if handler == nil {
-			return responses.New(404, responses.TEXT, nil)
+			return responses.New(404, responses.TEXT, nil, req)
 		}
 
 		return handler.HandleRequest(req)

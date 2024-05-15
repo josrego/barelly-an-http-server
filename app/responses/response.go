@@ -2,7 +2,13 @@ package responses
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"log"
+	"strings"
+
+	"github.com/codecrafters-io/http-server-starter-go/app/encodings"
+	"github.com/codecrafters-io/http-server-starter-go/app/requests"
 )
 
 type HttpStatusCode struct {
@@ -38,13 +44,47 @@ type Response struct {
 	Body        []byte
 }
 
-func New(status int, contentType string, body []byte) *Response {
+func New(status int, contentType string, body []byte, req *requests.Request) *Response {
+	headers := make(map[string]string)
+
+	// Check for compression header
+	encoder, err := getCompressionHeader(req)
+	if err == nil {
+		headers["Content-Encoding"] = encoder.EncodingType
+		encodedBody, err := encoder.EncodingFun(&body)
+		if err != nil {
+			log.Fatalf("Error while compressing body: %s\n", err)
+			return &Response{StatusCode: statusCodes[500]}
+		} else {
+			body = encodedBody
+		}
+	}
+
 	return &Response{
 		StatusCode:  statusCodes[status],
 		ContentType: contentType,
-		Headers:     make(map[string]string),
+		Headers:     headers,
 		Body:        body,
 	}
+}
+
+func getCompressionHeader(req *requests.Request) (*encodings.Encoder, error) {
+	if encodingHeader, ok := req.Headers["accept-encoding"]; ok {
+		// encoding can have multiple encoding values delimited by ','
+		//  but just one correct one is accepted
+		for _, encoding := range strings.Split(encodingHeader, ",") {
+			// trim spaces first
+			encoding = strings.TrimSpace(encoding)
+			if encoder, found := encodings.AvailableEncoders[encoding]; found {
+				fmt.Println("encoding found", encoding)
+				return &encoder, nil
+			}
+		}
+		fmt.Println("encoding not available in request: ", encodingHeader)
+		return nil, errors.New("encoding not available in request")
+	}
+
+	return nil, errors.New("encoding not available")
 }
 
 func (resp *Response) OutputString() []byte {
@@ -52,9 +92,12 @@ func (resp *Response) OutputString() []byte {
 
 	out.WriteString(fmt.Sprintf("%s %s%s", PROTOCOL_HTTP_1_1, resp.StatusCode.String(), CRLF))
 
-	// TODO: Headers here
 	out.WriteString("Content-Type:" + resp.ContentType + CRLF)
 	out.WriteString(fmt.Sprintf("Content-Length: %d%s", len(resp.Body), CRLF))
+
+	for name, value := range resp.Headers {
+		out.WriteString(fmt.Sprintf("%s: %s%s", name, value, CRLF))
+	}
 
 	out.WriteString(CRLF)
 	out.Write(resp.Body)
